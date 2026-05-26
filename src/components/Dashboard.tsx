@@ -96,7 +96,7 @@ export default function Dashboard({ session }: { session: any }) {
   };
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col md:flex-row overflow-hidden text-zinc-100 relative">
+    <div className="h-[100dvh] bg-zinc-950 flex flex-col md:flex-row overflow-hidden text-zinc-100 relative">
       {/* Dynamic Ambient Nebula Glows behind the glass panels */}
       <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-indigo-600/10 blur-[130px] rounded-full pointer-events-none z-0" />
       <div className="absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] bg-violet-600/10 blur-[130px] rounded-full pointer-events-none z-0" />
@@ -215,7 +215,7 @@ export default function Dashboard({ session }: { session: any }) {
             className="absolute inset-0"
           >
             {currentTab === "chats" && <ChatInterface session={session} onlineUsers={onlineUsers} />}
-            {currentTab === "directory" && <Directory onlineUsers={onlineUsers} />}
+            {currentTab === "directory" && <Directory onlineUsers={onlineUsers} onStartChat={() => setCurrentTab("chats")} />}
             {currentTab === "settings" && <Settings session={session} />}
           </motion.div>
         </AnimatePresence>

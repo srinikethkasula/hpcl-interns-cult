@@ -14,11 +14,12 @@ type UserProfile = {
   avatar_url?: string;
 };
 
-export default function Directory({ onlineUsers = [] }: { onlineUsers?: string[] }) {
+export default function Directory({ onlineUsers = [], onStartChat }: { onlineUsers?: string[]; onStartChat?: () => void }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [creatingChatFor, setCreatingChatFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -46,44 +47,53 @@ export default function Directory({ onlineUsers = [] }: { onlineUsers?: string[]
   };
 
   const startChat = async (otherUserId: string) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const myId = sessionData.session?.user.id;
-    if (!myId) return;
+    if (creatingChatFor) return; // prevent double-click race condition
+    setCreatingChatFor(otherUserId);
 
-    // Check if 1-on-1 chat already exists
-    const { data: existingMemberships } = await supabase
-      .from('chat_members')
-      .select('chat_id')
-      .eq('user_id', myId);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const myId = sessionData.session?.user.id;
+      if (!myId) return;
 
-    if (existingMemberships && existingMemberships.length > 0) {
-      const chatIds = existingMemberships.map(m => m.chat_id);
-      
-      const { data: sharedChats } = await supabase
+      // Check if a 1-on-1 DM already exists between the two users
+      const { data: existingMemberships } = await supabase
         .from('chat_members')
-        .select('chat_id, chats!inner(is_group)')
-        .in('chat_id', chatIds)
-        .eq('user_id', otherUserId)
-        .eq('chats.is_group', false);
+        .select('chat_id')
+        .eq('user_id', myId);
 
-      if (sharedChats && sharedChats.length > 0) {
-        alert("Chat already exists! Check your Chats tab.");
-        return;
+      if (existingMemberships && existingMemberships.length > 0) {
+        const chatIds = existingMemberships.map(m => m.chat_id);
+        
+        const { data: sharedChats } = await supabase
+          .from('chat_members')
+          .select('chat_id, chats!inner(is_group)')
+          .in('chat_id', chatIds)
+          .eq('user_id', otherUserId)
+          .eq('chats.is_group', false);
+
+        if (sharedChats && sharedChats.length > 0) {
+          // DM already exists — just switch to chats tab
+          onStartChat?.();
+          return;
+        }
       }
-    }
 
-    const { data: newChat } = await supabase
-      .from('chats')
-      .insert({ is_group: false })
-      .select()
-      .single();
+      // Create new DM chat
+      const { data: newChat } = await supabase
+        .from('chats')
+        .insert({ is_group: false })
+        .select()
+        .single();
 
-    if (newChat) {
-      await supabase.from('chat_members').insert([
-        { chat_id: newChat.id, user_id: myId },
-        { chat_id: newChat.id, user_id: otherUserId }
-      ]);
-      alert("Chat created! Check your Chats tab.");
+      if (newChat) {
+        await supabase.from('chat_members').insert([
+          { chat_id: newChat.id, user_id: myId },
+          { chat_id: newChat.id, user_id: otherUserId }
+        ]);
+        onStartChat?.(); // switch to chats tab
+      }
+    } finally {
+      setCreatingChatFor(null);
     }
   };
 
@@ -205,10 +215,13 @@ export default function Directory({ onlineUsers = [] }: { onlineUsers?: string[]
 
                   <button
                     onClick={() => startChat(user.id)}
-                    className="w-full py-2.5 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-indigo-600 text-zinc-300 hover:text-white rounded-xl transition-all font-medium text-sm border border-zinc-700 hover:border-indigo-500 shadow-sm"
+                    disabled={creatingChatFor === user.id}
+                    className="w-full py-2.5 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-indigo-600 text-zinc-300 hover:text-white rounded-xl transition-all font-medium text-sm border border-zinc-700 hover:border-indigo-500 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <MessageSquare className="w-4 h-4" />
-                    Message
+                    {creatingChatFor === user.id
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <MessageSquare className="w-4 h-4" />}
+                    {creatingChatFor === user.id ? "Opening..." : "Message"}
                   </button>
                 </motion.div>
               ))}
