@@ -659,9 +659,9 @@ export default function ChatInterface({
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row relative bg-transparent text-zinc-100">
+    <div className="h-full flex flex-col md:flex-row relative bg-transparent text-zinc-100 min-h-0">
       {/* Sidebar */}
-      <div className={`w-full md:w-80 glass-panel border-r border-zinc-800 flex flex-col ${activeChat ? 'hidden md:flex' : 'flex'} z-10`}>
+      <div className={`w-full md:w-80 glass-panel border-r border-zinc-800 flex flex-col min-h-0 ${activeChat ? 'hidden md:flex' : 'flex'} z-10`}>
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
           <h2 className="font-semibold text-zinc-100">Your Chats</h2>
           <button 
@@ -732,7 +732,7 @@ export default function ChatInterface({
 
       {/* Active Chat */}
       {activeChat ? (
-        <div className="flex-1 flex flex-col h-full min-w-0 relative bg-transparent">
+        <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 relative bg-transparent">
           {/* Header */}
           <div className="p-4 glass-panel border-b border-zinc-800 flex items-center gap-3 z-10 shadow-md">
             <button className="md:hidden text-indigo-400 font-medium text-sm hover:text-indigo-300 mr-2" onClick={() => setActiveChat(null)}>
