@@ -52,6 +52,9 @@ type Chat = {
   avatar_url?: string | null;
   other_user_id?: string;
   other_user_phone?: string | null;
+  other_user_department?: string | null;
+  other_user_office?: string | null;
+  other_user_floor?: string | null;
 };
 
 type Message = {
@@ -239,11 +242,14 @@ export default function ChatInterface({
           if (!c.is_group) {
             const { data: otherMember } = await supabase.from('chat_members').select('user_id').eq('chat_id', c.id).neq('user_id', session.user.id).maybeSingle();
             if (otherMember) {
-              const { data: userProfile } = await supabase.from('users').select('full_name, avatar_url, phone').eq('id', otherMember.user_id).maybeSingle();
+              const { data: userProfile } = await supabase.from('users').select('full_name, avatar_url, phone, department, office, floor').eq('id', otherMember.user_id).maybeSingle();
               c.name = userProfile?.full_name || "Unknown User";
               c.avatar_url = userProfile?.avatar_url || null;
               c.other_user_id = otherMember.user_id;
               c.other_user_phone = userProfile?.phone || null;
+              c.other_user_department = userProfile?.department || null;
+              c.other_user_office = userProfile?.office || null;
+              c.other_user_floor = userProfile?.floor || null;
             }
           }
           return c as Chat;
@@ -519,8 +525,20 @@ export default function ChatInterface({
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="font-semibold text-[var(--text-primary)] text-sm leading-none truncate">{activeChat.name}</h2>
-              <span className="text-[10px] text-zinc-500 font-medium">
-                {activeChat.is_group ? (activeChat.id === ALL_INTERNS_CHAT_ID ? 'All HPCL Interns' : 'Group Workspace') : activeChat.other_user_id && onlineUsers.includes(activeChat.other_user_id) ? '🟢 Online' : 'Offline'}
+              <span className="text-[10px] text-zinc-500 font-medium flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                <span>{activeChat.is_group ? (activeChat.id === ALL_INTERNS_CHAT_ID ? 'All HPCL Interns' : 'Group Workspace') : activeChat.other_user_id && onlineUsers.includes(activeChat.other_user_id) ? '🟢 Online' : 'Offline'}</span>
+                {!activeChat.is_group && (activeChat.other_user_department || activeChat.other_user_office || activeChat.other_user_floor) && (
+                  <>
+                    <span className="text-zinc-600/80">•</span>
+                    <span className="text-indigo-400 font-medium">
+                      {[
+                        activeChat.other_user_department,
+                        activeChat.other_user_office,
+                        activeChat.other_user_floor ? `${activeChat.other_user_floor} Floor` : null
+                      ].filter(Boolean).join(' • ')}
+                    </span>
+                  </>
+                )}
               </span>
             </div>
 
@@ -704,7 +722,7 @@ export default function ChatInterface({
                             )}
                           </span>
                         ) : (
-                          `${msg.sender?.department || ''} • ${msg.sender?.office || ''}`
+                          `${msg.sender?.department || ''} • ${msg.sender?.office || ''}${msg.sender?.floor ? ` • Floor ${msg.sender.floor}` : ''}`
                         )}
                       </div>
                     </motion.div>
