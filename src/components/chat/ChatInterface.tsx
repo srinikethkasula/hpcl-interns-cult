@@ -307,10 +307,16 @@ export default function ChatInterface({
     }
   }, [activeChat]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (instant = false) => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+      const el = messagesEndRef.current;
+      if (!el) return;
+      // Scroll only the messages container, NOT the whole document
+      const container = el.parentElement;
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: instant ? "instant" : "smooth" });
+      }
+    }, 50);
   };
 
   const fetchChats = async () => {
@@ -435,7 +441,7 @@ export default function ChatInterface({
       
     if (data) {
       setMessages(data as any);
-      scrollToBottom();
+      scrollToBottom(true); // instant on initial load
     }
 
     // Fetch the other user's read timestamp for read receipts
