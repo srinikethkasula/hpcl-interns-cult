@@ -110,6 +110,47 @@ export default function ChatInterface({
 
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
 
+  // Desktop notifications setup
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  const triggerDesktopNotification = useCallback(async (msg: any) => {
+    if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+    try {
+      const { data: sender } = await supabase
+        .from('users')
+        .select('full_name, avatar_url')
+        .eq('id', msg.sender_id)
+        .single();
+
+      const title = sender?.full_name || "New Message";
+      const body = msg.file_name ? `📎 Shared a file: ${msg.file_name}` : msg.content || "📷 Shared a photo";
+      const icon = sender?.avatar_url || "/favicon.ico";
+
+      const notification = new Notification(title, {
+        body,
+        icon,
+        tag: msg.chat_id,
+        requireInteraction: false
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        // Automatically switch to the sender's chat!
+        const targetChat = chats.find(c => c.id === msg.chat_id);
+        if (targetChat) setActiveChat(targetChat);
+      };
+    } catch (err) {
+      console.error("Failed to trigger desktop notification:", err);
+    }
+  }, [chats]);
+
   // Dismiss reaction menu on click outside
   useEffect(() => {
     const handle = () => setActiveReactionMenuId(null);
@@ -144,6 +185,7 @@ export default function ChatInterface({
             const isMuted = mutedChats.has(incomingChatId);
             if (belongsToMe && !isActive && !isMuted) {
               setUnreadCounts(u => ({ ...u, [incomingChatId]: (u[incomingChatId] || 0) + 1 }));
+              triggerDesktopNotification(payload.new);
             }
             return prev;
           });
@@ -167,6 +209,11 @@ export default function ChatInterface({
             setMessages(prev => { if (prev.some(m => m.id === newMsg.id)) return prev; return [...prev, newMsg]; });
             scrollToBottom();
             if (activeChatRef.current?.id) await updateLastRead(activeChatRef.current.id);
+
+            // Send notification if tab is blurred/hidden
+            if (payload.new.sender_id !== session.user.id && typeof document !== 'undefined' && document.hidden) {
+              triggerDesktopNotification(payload.new);
+            }
           } else if (payload.eventType === 'UPDATE') {
             setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
           } else if (payload.eventType === 'DELETE') {
