@@ -89,7 +89,7 @@ export default function Auth() {
               <Building2 className="w-8 h-8 text-white" />
             </motion.div>
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-transparent">
-              HPCL Cult
+              HPCL Intern Connect
             </h1>
             <p className="text-sm text-zinc-400 mt-2">Intern Communication Portal</p>
           </div>
@@ -256,7 +256,7 @@ export default function Auth() {
                 <h3 className="text-lg font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
                   Password Recovery
                 </h3>
-                <p className="text-xs text-zinc-500 mt-1">Official HPCL Cult Registry Notice</p>
+                <p className="text-xs text-zinc-500 mt-1">Official HPCL Intern Connect Registry Notice</p>
               </div>
 
               <div className="space-y-4 text-sm text-zinc-300 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 mb-6 leading-relaxed">
