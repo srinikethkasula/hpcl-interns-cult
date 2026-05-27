@@ -447,24 +447,11 @@ export default function ChatInterface({
     }
   };
 
-  // Legacy FCM Direct Multicast Client-Initiated Push Alerts
+  // FCM HTTP v1 API via Serverless Endpoint
   const sendPushNotification = async (messageContent: string, isImage = false, fileName: string | null = null) => {
     if (!activeChat || !session?.user?.id) return;
 
     try {
-      // 1. Fetch FCM Server Key securely from app_config table
-      const { data: config } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', 'fcm_server_key')
-        .maybeSingle();
-
-      if (!config || !config.value || config.value.includes('PASTE_YOUR_')) {
-        console.warn("FCM Server Key placeholder detected or missing.");
-        return;
-      }
-
-      const serverKey = config.value;
       const senderName = session.user.user_metadata?.full_name || "Someone";
 
       // Construct message snippet
@@ -472,7 +459,7 @@ export default function ChatInterface({
       if (isImage) snippet = "📷 Sent a photo";
       else if (fileName) snippet = `📎 Shared a file: ${fileName}`;
 
-      // 2. Fetch target tokens
+      // 1. Fetch target tokens
       let targetTokens: string[] = [];
 
       if (!activeChat.is_group) {
@@ -506,34 +493,26 @@ export default function ChatInterface({
 
       if (targetTokens.length === 0) return;
 
-      // 3. Send push notifications using Legacy FCM API
-      // Since Legacy FCM API supports 'registration_ids' for multicast pushes,
-      // we can send to all group members in one single HTTP request!
-      const bodyPayload = {
-        registration_ids: targetTokens,
-        notification: {
-          title: activeChat.is_group ? `${senderName} (#${activeChat.name})` : senderName,
-          body: snippet,
-          icon: "/icon-192.png",
-          badge: "/icon-192.png",
-          click_action: window.location.origin
-        },
-        data: {
-          chat_id: activeChat.id,
-          sender_id: session.user.id
-        }
-      };
-
-      await fetch('https://fcm.googleapis.com/fcm/send', {
+      // 2. Call our secure serverless send-push API
+      const response = await fetch('/api/send-push', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `key=${serverKey}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify({
+          tokens: targetTokens,
+          title: activeChat.is_group ? `${senderName} (#${activeChat.name})` : senderName,
+          body: snippet,
+          chatId: activeChat.id
+        })
       });
 
-      console.log(`Push notifications sent to ${targetTokens.length} devices.`);
+      const resData = await response.json();
+      if (!response.ok || !resData.success) {
+        console.warn("FCM HTTP v1 background push warned:", resData.error || resData.message);
+      } else {
+        console.log(`Push notifications dispatched successfully via HTTP v1 serverless API.`);
+      }
     } catch (err) {
       console.error("FCM background push fail:", err);
     }

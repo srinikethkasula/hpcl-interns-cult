@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS public.app_config (
 -- Disable Row Level Security (RLS) for app_config so client can read it
 ALTER TABLE public.app_config DISABLE ROW LEVEL SECURITY;
 
--- Insert placeholder for FCM Server Key (You will replace this value in Supabase)
+-- Insert placeholders for FCM Configs
 INSERT INTO public.app_config (key, value)
-VALUES ('fcm_server_key', 'PASTE_YOUR_FIREBASE_SERVER_KEY_HERE')
+VALUES 
+  ('fcm_server_key', 'DEPRECATED_NOT_NEEDED_FOR_V1'),
+  ('fcm_service_account', 'PASTE_YOUR_FIREBASE_SERVICE_ACCOUNT_JSON_HERE')
 ON CONFLICT (key) DO NOTHING;
