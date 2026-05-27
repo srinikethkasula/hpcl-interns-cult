@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { supabase } from "@/lib/supabase/client";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDez_MkW0-gJ_ZZokmELpFgpv3hG5S8ImM",
@@ -25,14 +26,28 @@ export const setupFCM = async () => {
         
         await navigator.serviceWorker.ready;
         
+        // Fetch VAPID key securely and dynamically from Supabase
+        const { data: config } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'fcm_vapid_key')
+          .maybeSingle();
+
+        const vapidKey = config?.value && !config.value.includes('PASTE_YOUR') ? config.value : undefined;
+
+        if (!vapidKey) {
+          console.warn("FCM VAPID key is missing or not configured in app_config table. Push token registration skipped.");
+          return null;
+        }
+        
         const token = await getToken(messaging, {
-          serviceWorkerRegistration: registration
+          serviceWorkerRegistration: registration,
+          vapidKey: vapidKey
         });
         console.log("FCM Token Generated:", token);
         
         onMessage(messaging, (payload) => {
           console.log("Message received in foreground: ", payload);
-          // Optional: Show an in-app toast notification here
         });
         
         return token;

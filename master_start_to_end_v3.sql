@@ -293,5 +293,6 @@ SELECT cron.schedule(
 INSERT INTO public.app_config (key, value)
 VALUES 
   ('fcm_server_key', 'DEPRECATED_NOT_NEEDED_FOR_V1'),
-  ('fcm_service_account', 'PASTE_YOUR_FIREBASE_SERVICE_ACCOUNT_JSON_HERE')
+  ('fcm_service_account', 'PASTE_YOUR_FIREBASE_SERVICE_ACCOUNT_JSON_HERE'),
+  ('fcm_vapid_key', 'PASTE_YOUR_FIREBASE_VAPID_PUBLIC_KEY_HERE')
 ON CONFLICT (key) DO NOTHING;
