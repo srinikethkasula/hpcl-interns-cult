@@ -21,6 +21,14 @@ export default function Home() {
       setSession(session);
     });
 
+    // Register PWA Service Worker for App/Shortcut install prompts
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then(
+        (reg) => console.log('ServiceWorker registration successful: ', reg.scope),
+        (err) => console.error('ServiceWorker registration failed: ', err)
+      );
+    }
+
     return () => subscription.unsubscribe();
   }, []);
 

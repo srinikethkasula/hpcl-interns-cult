@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "HPCL Intern Connect",
   description: "Official HPCL Intern Communication Portal — Connect, Collaborate, Communicate.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "HPCL Connect",
+  },
 };
 
 export const viewport: Viewport = {
@@ -22,6 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   interactiveWidget: "resizes-content",
+  themeColor: "#4f46e5",
 };
 
 // Inline script to apply saved theme before first paint (prevents flash)
