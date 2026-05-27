@@ -18,8 +18,18 @@ export default function Dashboard({ session }: { session: any }) {
   const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
 
   useEffect(() => {
-    setupFCM();
-  }, []);
+    const initFCM = async () => {
+      const token = await setupFCM();
+      if (token && session?.user?.id) {
+        await supabase
+          .from('users')
+          .update({ fcm_token: token })
+          .eq('id', session.user.id);
+        console.log("FCM Token synchronized with database.");
+      }
+    };
+    initFCM();
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
