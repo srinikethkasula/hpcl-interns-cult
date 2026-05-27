@@ -7,70 +7,31 @@
 // =========================================================================
 
 // -------------------------------------------------------------
-// 1. PWA OFFLINE CACHING & INSTALLATION CAPABILITIES
+// 1. PWA INSTALLATION & AUTO-CLEANUP CACHE SYSTEM
 // -------------------------------------------------------------
-const CACHE_NAME = 'hpcl-connect-v3';
-const ASSETS = [
-  '/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
-];
+// Having an active service worker with a fetch listener makes the app fully
+// installable on mobile/desktop home screens, but we do zero caching to prevent
+// Next.js chunk-loading conflicts and cache-crash issues.
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
-  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
+  // Wipes out all legacy caches to immediately solve any stuck loading/crashed screens
   e.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
+        keys.map((key) => caches.delete(key))
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// A standard pass-through fetch listener (required by browsers for PWA installability)
 self.addEventListener('fetch', (e) => {
-  // Dynamic API, Supabase Realtime, and Google/Firebase push networks must bypass the cache
-  if (
-    e.request.url.includes('/api/') || 
-    e.request.url.includes('supabase.co') || 
-    e.request.url.includes('firebase') || 
-    e.request.url.includes('googleapis')
-  ) {
-    return;
-  }
-
-  e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(e.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(e.request, responseToCache);
-        });
-        return networkResponse;
-      }).catch(() => {
-        // Safe fail
-      });
-    })
-  );
+  // Pass-through to network, ensuring the latest live code is always fetched immediately
+  return;
 });
 
 // -------------------------------------------------------------
