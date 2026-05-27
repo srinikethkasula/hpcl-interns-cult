@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Search, MessageSquare, Loader2, User as UserIcon, Filter, Building2, MapPin, GraduationCap } from "lucide-react";
+import { Search, MessageSquare, Loader2, User as UserIcon, Filter, Building2, MapPin, GraduationCap, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 
 type UserProfile = {
@@ -14,6 +14,31 @@ type UserProfile = {
   avatar_url?: string;
   college_name?: string | null;
   study_year?: string | null;
+  last_seen_at?: string | null;
+};
+
+const formatLastSeen = (dateString?: string | null) => {
+  if (!dateString) return "Offline";
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return "Offline";
+  }
 };
 
 export default function Directory({ onlineUsers = [], onStartChat }: { onlineUsers?: string[]; onStartChat?: () => void }) {
@@ -197,9 +222,21 @@ export default function Directory({ onlineUsers = [], onStartChat }: { onlineUse
                       </div>
                       <div>
                         <h3 className="font-semibold text-zinc-100">{user.full_name}</h3>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                          {user.department}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            {user.department}
+                          </span>
+                          {user.college_name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                              {user.college_name}
+                            </span>
+                          )}
+                          {user.study_year && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                              {user.study_year}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -217,6 +254,16 @@ export default function Directory({ onlineUsers = [], onStartChat }: { onlineUse
                         </span>
                       </div>
                     )}
+                    <div className="flex items-center text-sm text-zinc-400">
+                      <Clock className="w-4 h-4 mr-2 text-zinc-500 shrink-0" />
+                      <span className="truncate text-xs">
+                        {onlineUsers.includes(user.id) ? (
+                          <span className="text-emerald-400 font-medium">Active now</span>
+                        ) : (
+                          <span className="text-zinc-500">Last active: {formatLastSeen(user.last_seen_at)}</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
 
                   <button

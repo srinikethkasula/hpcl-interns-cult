@@ -31,6 +31,28 @@ export default function Dashboard({ session }: { session: any }) {
     initFCM();
   }, [session?.user?.id]);
 
+  // Synchronize last_seen_at timestamp to track online presence and offline relative last active times
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const updateLastSeen = async () => {
+      try {
+        await supabase
+          .from('users')
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq('id', session.user.id);
+      } catch (err) {
+        console.error("Failed to update last active timestamp:", err);
+      }
+    };
+
+    updateLastSeen();
+
+    // Heartbeat update every 3 minutes while active
+    const interval = setInterval(updateLastSeen, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user?.id) return;
 

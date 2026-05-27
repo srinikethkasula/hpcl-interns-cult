@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   fcm_token text,
   college_name text,
   study_year text,
+  last_seen_at timestamp with time zone DEFAULT now(),
   created_at timestamp with time zone DEFAULT now()
 );
 
@@ -32,6 +33,7 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url text;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS fcm_token text;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS college_name text;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS study_year text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_seen_at timestamp with time zone DEFAULT now();
 
 -- Make fields nullable (for flexibility)
 ALTER TABLE public.users ALTER COLUMN full_name DROP NOT NULL;
