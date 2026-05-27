@@ -15,7 +15,9 @@ const DEPARTMENTS = [
   "Refinery Operations",
   "Research & Development (R&D)",
   "Health, Safety & Environment (HSE)",
-  "Public Relations (PR)"
+  "Public Relations (PR)",
+  "Treasury",
+  "Legal"
 ];
 
 export default function AuthForm() {

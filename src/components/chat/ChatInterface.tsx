@@ -371,7 +371,12 @@ export default function ChatInterface({
     setIsTyping(false);
     supabase.channel(`chat_${activeChat.id}`).send({ type: 'broadcast', event: 'typing', payload: { userId: session.user.id, isTyping: false } });
     const { error } = await supabase.from('messages').insert({ chat_id: activeChat.id, sender_id: session.user.id, content });
-    if (error) { console.error("Send error:", error); setNewMessage(content); }
+    if (error) {
+      console.error("Send error:", error);
+      setNewMessage(content);
+    } else {
+      sendPushNotification(content);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,6 +413,7 @@ export default function ChatInterface({
         ...(isImage ? {} : { image_url: publicUrl })
       });
       if (msgError) throw msgError;
+      sendPushNotification('', isImage, isImage ? null : file.name);
       e.target.value = '';
     } catch (err: any) {
       alert("Failed to share file: " + err.message);
@@ -438,6 +444,98 @@ export default function ChatInterface({
       alert("Failed to delete: " + err.message);
     } finally {
       setDeleteConfirm(null);
+    }
+  };
+
+  // Legacy FCM Direct Multicast Client-Initiated Push Alerts
+  const sendPushNotification = async (messageContent: string, isImage = false, fileName: string | null = null) => {
+    if (!activeChat || !session?.user?.id) return;
+
+    try {
+      // 1. Fetch FCM Server Key securely from app_config table
+      const { data: config } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'fcm_server_key')
+        .maybeSingle();
+
+      if (!config || !config.value || config.value.includes('PASTE_YOUR_')) {
+        console.warn("FCM Server Key placeholder detected or missing.");
+        return;
+      }
+
+      const serverKey = config.value;
+      const senderName = session.user.user_metadata?.full_name || "Someone";
+
+      // Construct message snippet
+      let snippet = messageContent;
+      if (isImage) snippet = "📷 Sent a photo";
+      else if (fileName) snippet = `📎 Shared a file: ${fileName}`;
+
+      // 2. Fetch target tokens
+      let targetTokens: string[] = [];
+
+      if (!activeChat.is_group) {
+        // Direct Message: Fetch other member's token
+        if (activeChat.other_user_id) {
+          const { data: recipient } = await supabase
+            .from('users')
+            .select('fcm_token')
+            .eq('id', activeChat.other_user_id)
+            .maybeSingle();
+
+          if (recipient?.fcm_token) {
+            targetTokens.push(recipient.fcm_token);
+          }
+        }
+      } else {
+        // Group Chat: Fetch fcm_token of all other active members in the chat
+        const { data: members } = await supabase
+          .from('chat_members')
+          .select('user_id, users!inner(fcm_token)')
+          .eq('chat_id', activeChat.id)
+          .neq('user_id', session.user.id);
+
+        if (members && members.length > 0) {
+          members.forEach((m: any) => {
+            const token = m.users?.fcm_token;
+            if (token) targetTokens.push(token);
+          });
+        }
+      }
+
+      if (targetTokens.length === 0) return;
+
+      // 3. Send push notifications using Legacy FCM API
+      // Since Legacy FCM API supports 'registration_ids' for multicast pushes,
+      // we can send to all group members in one single HTTP request!
+      const bodyPayload = {
+        registration_ids: targetTokens,
+        notification: {
+          title: activeChat.is_group ? `${senderName} (#${activeChat.name})` : senderName,
+          body: snippet,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          click_action: window.location.origin
+        },
+        data: {
+          chat_id: activeChat.id,
+          sender_id: session.user.id
+        }
+      };
+
+      await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `key=${serverKey}`
+        },
+        body: JSON.stringify(bodyPayload)
+      });
+
+      console.log(`Push notifications sent to ${targetTokens.length} devices.`);
+    } catch (err) {
+      console.error("FCM background push fail:", err);
     }
   };
 

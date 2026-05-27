@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { User, Building2, Briefcase, Save, Loader2, Camera, Sun, Moon } from "lucide-react";
+import { User, Building2, Briefcase, Save, Loader2, Camera, Sun, Moon, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect as useEff, useState as useSt } from "react";
 
@@ -16,7 +16,9 @@ export const DEPARTMENTS = [
   "Refinery Operations",
   "Research & Development (R&D)",
   "Health, Safety & Environment (HSE)",
-  "Public Relations (PR)"
+  "Public Relations (PR)",
+  "Treasury",
+  "Legal"
 ];
 
 const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.75): Promise<Blob> => {
@@ -59,6 +61,8 @@ export default function Settings({ session }: { session: any }) {
   const [department, setDepartment] = useState("");
   const [floor, setFloor] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [collegeName, setCollegeName] = useState("");
+  const [studyYear, setStudyYear] = useState("");
 
   useEffect(() => {
     fetchProfile();
@@ -87,6 +91,8 @@ export default function Settings({ session }: { session: any }) {
       setDepartment(data.department);
       setFloor(data.floor);
       setAvatarUrl(data.avatar_url || "");
+      setCollegeName(data.college_name || "");
+      setStudyYear(data.study_year || "");
     }
     setLoading(false);
   };
@@ -153,7 +159,9 @@ export default function Settings({ session }: { session: any }) {
         full_name: fullName,
         office,
         department,
-        floor
+        floor,
+        college_name: collegeName,
+        study_year: studyYear
       })
       .eq('id', session.user.id);
 
@@ -312,6 +320,40 @@ export default function Settings({ session }: { session: any }) {
                     className="w-full px-4 py-3 glass-input text-sm text-zinc-100"
                     required
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">College / University Name</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={collegeName}
+                      onChange={e => setCollegeName(e.target.value)}
+                      placeholder="e.g. IIT Bombay"
+                      className="w-full pl-11 pr-4 py-3 glass-input text-sm text-zinc-100"
+                    />
+                    <GraduationCap className="absolute left-4 top-3.5 h-4 w-4 text-zinc-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Study Year</label>
+                  <div className="relative">
+                    <select
+                      value={studyYear}
+                      onChange={e => setStudyYear(e.target.value)}
+                      className="w-full pl-11 pr-10 py-3 glass-input text-sm appearance-none cursor-pointer text-zinc-100"
+                    >
+                      <option value="" disabled className="bg-zinc-900">Select Year</option>
+                      <option value="1st Year" className="bg-zinc-900 text-zinc-100">1st Year</option>
+                      <option value="2nd Year" className="bg-zinc-900 text-zinc-100">2nd Year</option>
+                      <option value="3rd Year" className="bg-zinc-900 text-zinc-100">3rd Year</option>
+                      <option value="4th Year" className="bg-zinc-900 text-zinc-100">4th Year</option>
+                      <option value="5th Year" className="bg-zinc-900 text-zinc-100">5th Year</option>
+                    </select>
+                    <div className="absolute right-4 top-4.5 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-500 w-0 h-0" />
+                  </div>
                 </div>
               </div>
             </div>

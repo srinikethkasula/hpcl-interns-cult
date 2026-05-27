@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Search, MessageSquare, Loader2, User as UserIcon, Filter, Building2, MapPin } from "lucide-react";
+import { Search, MessageSquare, Loader2, User as UserIcon, Filter, Building2, MapPin, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 
 type UserProfile = {
@@ -12,6 +12,8 @@ type UserProfile = {
   office: string;
   floor: string;
   avatar_url?: string;
+  college_name?: string | null;
+  study_year?: string | null;
 };
 
 export default function Directory({ onlineUsers = [], onStartChat }: { onlineUsers?: string[]; onStartChat?: () => void }) {
@@ -204,13 +206,17 @@ export default function Directory({ onlineUsers = [], onStartChat }: { onlineUse
                   
                   <div className="space-y-2 mb-5">
                     <div className="flex items-center text-sm text-zinc-400">
-                      <Building2 className="w-4 h-4 mr-2 text-zinc-500" />
-                      {user.office}
+                      <Building2 className="w-4 h-4 mr-2 text-zinc-500 shrink-0" />
+                      <span className="truncate">{user.office} • Floor {user.floor}</span>
                     </div>
-                    <div className="flex items-center text-sm text-zinc-400">
-                      <MapPin className="w-4 h-4 mr-2 text-zinc-500" />
-                      Floor {user.floor}
-                    </div>
+                    {(user.college_name || user.study_year) && (
+                      <div className="flex items-center text-sm text-zinc-400">
+                        <GraduationCap className="w-4 h-4 mr-2 text-indigo-400 shrink-0" />
+                        <span className="truncate">
+                          {[user.college_name, user.study_year].filter(Boolean).join(' • ')}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <button

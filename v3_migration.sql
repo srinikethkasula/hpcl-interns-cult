@@ -1,0 +1,25 @@
+-- =========================================================================
+-- HPCL INTERN CONNECT — V3 DATABASE SCHEMA UPGRADES
+-- =========================================================================
+-- Run this script in your Supabase SQL Editor (SQL Editor > New Query)
+-- =========================================================================
+
+-- 1. ADD NEW PROFILE COLUMNS TO USERS
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS fcm_token text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS college_name text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS study_year text;
+
+-- 2. CREATE CONFIGURATION TABLE TO SECURELY STORE YOUR FCM SERVER KEY
+CREATE TABLE IF NOT EXISTS public.app_config (
+  key text PRIMARY KEY,
+  value text NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Disable Row Level Security (RLS) for app_config so client can read it
+ALTER TABLE public.app_config DISABLE ROW LEVEL SECURITY;
+
+-- Insert placeholder for FCM Server Key (You will replace this value in Supabase)
+INSERT INTO public.app_config (key, value)
+VALUES ('fcm_server_key', 'PASTE_YOUR_FIREBASE_SERVER_KEY_HERE')
+ON CONFLICT (key) DO NOTHING;
