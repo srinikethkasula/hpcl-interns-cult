@@ -9,7 +9,7 @@
 // -------------------------------------------------------------
 // 1. PWA OFFLINE CACHING & INSTALLATION CAPABILITIES
 // -------------------------------------------------------------
-const CACHE_NAME = 'hpcl-connect-v2';
+const CACHE_NAME = 'hpcl-connect-v3';
 const ASSETS = [
   '/',
   '/manifest.json',
