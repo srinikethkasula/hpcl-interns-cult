@@ -25,12 +25,35 @@ export default function Home() {
       }
     });
 
-    // Register PWA Service Worker for App/Shortcut install prompts
+    // Register PWA Service Worker with Auto-Update & Reload capabilities
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/firebase-messaging-sw.js').then(
-        (reg) => console.log('ServiceWorker registration successful: ', reg.scope),
-        (err) => console.error('ServiceWorker registration failed: ', err)
-      );
+      navigator.serviceWorker.register('/firebase-messaging-sw.js').then((reg) => {
+        console.log('ServiceWorker registration successful: ', reg.scope);
+        
+        // Listen for new updates
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('New update installed. Auto-reloading to apply...');
+                window.location.reload();
+              }
+            };
+          }
+        };
+      }).catch((err) => {
+        console.error('ServiceWorker registration failed: ', err);
+      });
+
+      // Binds page reload once when the new active service worker takes control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     }
 
     return () => subscription.unsubscribe();
