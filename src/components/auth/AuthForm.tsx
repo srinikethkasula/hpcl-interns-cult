@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Phone, Lock, User, Building2, Briefcase, ArrowRight, Loader2 } from "lucide-react";
+import { Phone, Lock, User, Building2, Briefcase, ArrowRight, Loader2, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const DEPARTMENTS = [
@@ -23,6 +23,7 @@ const DEPARTMENTS = [
 export default function AuthForm() {
   const [step, setStep] = useState<"phone" | "login" | "signup">("phone");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [office, setOffice] = useState("");
@@ -30,7 +31,9 @@ export default function AuthForm() {
   const [floor, setFloor] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +70,28 @@ export default function AuthForm() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMessage("");
+    setLoading(true);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
+      setSuccessMessage("Password reset email sent! Check your inbox.");
+      setRecoveryEmail("");
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -81,11 +106,13 @@ export default function AuthForm() {
         });
         if (error) throw error;
       } else if (step === "signup") {
+        // Sign up with phone as primary, store email in metadata for later linking
         const { error } = await supabase.auth.signUp({
           phone: fullPhone,
           password,
           options: {
             data: {
+              email: email,
               phone: fullPhone,
               full_name: fullName,
               office,
@@ -318,6 +345,18 @@ export default function AuthForm() {
 
                 <div className="relative">
                   <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-zinc-900/50 border border-zinc-800 rounded-xl focus:bg-zinc-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-sm text-zinc-100 placeholder:text-zinc-500"
+                    placeholder="Email Address (for password recovery)"
+                    required
+                  />
+                  <Mail className="absolute left-4 top-3.5 h-4 w-4 text-zinc-500 pointer-events-none" />
+                </div>
+
+                <div className="relative">
+                  <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -331,7 +370,7 @@ export default function AuthForm() {
 
                 <button
                   type="submit"
-                  disabled={loading || password.length < 6 || !fullName || !office || !department || !floor}
+                  disabled={loading || password.length < 6 || !fullName || !office || !department || !floor || !email}
                   className="w-full flex items-center justify-center py-3 px-4 mt-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20 cursor-pointer text-sm"
                 >
                   {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Sign Up"}
@@ -362,30 +401,68 @@ export default function AuthForm() {
                   <Lock className="w-6 h-6 text-indigo-400" />
                 </div>
                 <h3 className="text-lg font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                  Password Recovery
+                  Recover Your Password
                 </h3>
-                <p className="text-xs text-zinc-500 mt-1">Official HPCL Intern Connect Registry Notice</p>
+                <p className="text-xs text-zinc-500 mt-1">Enter your registered email address below</p>
               </div>
 
-              <div className="space-y-4 text-sm text-zinc-300 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 mb-6 leading-relaxed">
-                <p>
-                  Since your account is linked directly to your **official HPCL intern phone number registry**, password resets are managed securely by your system administrator.
-                </p>
-                <div className="border-t border-zinc-800/40 my-3" />
-                <p className="font-semibold text-zinc-200">How to reset your password:</p>
-                <ul className="list-disc pl-5 space-y-1.5 text-xs text-zinc-400">
-                  <li>Contact your **IT Supervisor** or the **Corporate Communications Admin** at your Refinery unit.</li>
-                  <li>Request them to reset your password in the **Supabase Dashboard** under <code className="px-1 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-[10px] text-zinc-300">Authentication &gt; Users</code>.</li>
-                  <li>Once updated, you can log in instantly with your new password!</li>
-                </ul>
-              </div>
-
-              <button
-                onClick={() => setIsForgotPasswordOpen(false)}
-                className="w-full py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium rounded-xl transition-all shadow-md shadow-indigo-500/10 cursor-pointer text-sm"
-              >
-                Got it, thanks!
-              </button>
+              {successMessage ? (
+                <div className="text-center space-y-4 py-4">
+                  <div className="p-4 rounded-xl text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    {successMessage}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsForgotPasswordOpen(false);
+                      setSuccessMessage("");
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium rounded-xl transition-all shadow-md shadow-indigo-500/10 cursor-pointer text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs font-medium text-center">
+                      {error}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Email Address</label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={recoveryEmail}
+                        onChange={(e) => setRecoveryEmail(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3 bg-zinc-900/50 border border-zinc-800 rounded-xl focus:bg-zinc-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-sm text-zinc-100 placeholder:text-zinc-500"
+                        placeholder="intern@hpcl.in"
+                        required
+                      />
+                      <Mail className="absolute left-4 top-3.5 h-4 w-4 text-zinc-500" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPasswordOpen(false);
+                        setError("");
+                      }}
+                      className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-medium rounded-xl border border-zinc-800 transition-all text-sm cursor-pointer text-center"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/10 cursor-pointer text-sm"
+                    >
+                      {loading ? <Loader2 className="animate-spin h-5 w-5 mx-auto" /> : "Send Link"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </motion.div>
         )}
