@@ -87,6 +87,16 @@ export default function ChatInterface({
   const [messageSearch, setMessageSearch] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const MESSAGES_PER_PAGE = 50;
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -320,8 +330,17 @@ export default function ChatInterface({
 
   const fetchMessages = async (chatId: string) => {
     setLoadingMessages(true);
-    const { data } = await supabase.from('messages').select('*, sender:users(id, full_name, avatar_url, office, department, floor), message_reactions(*)').eq('chat_id', chatId).order('created_at', { ascending: true });
-    if (data) { setMessages(data as any); scrollToBottom(true); }
+    const { data } = await supabase.from('messages')
+      .select('*, sender:users(id, full_name, avatar_url, office, department, floor), message_reactions(*)')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_PER_PAGE);
+
+    if (data) { 
+      setMessages(data.reverse() as any); 
+      setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
+      scrollToBottom(true); 
+    }
 
     if (activeChatRef.current && !activeChatRef.current.is_group && activeChatRef.current.other_user_id) {
       const { data: otherInfo } = await supabase.from('chat_members').select('last_read_at').eq('chat_id', chatId).eq('user_id', activeChatRef.current.other_user_id).maybeSingle();
@@ -330,6 +349,32 @@ export default function ChatInterface({
       setOtherMemberLastRead(null);
     }
     setLoadingMessages(false);
+  };
+
+  const loadMoreMessages = async () => {
+    if (!activeChat || loadingMore || !hasMoreMessages || messages.length === 0) return;
+    setLoadingMore(true);
+    const oldestMsg = messages[0];
+    const { data } = await supabase.from('messages')
+      .select('*, sender:users(id, full_name, avatar_url, office, department, floor), message_reactions(*)')
+      .eq('chat_id', activeChat.id)
+      .lt('created_at', oldestMsg.created_at)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_PER_PAGE);
+      
+    if (data && data.length > 0) {
+      setMessages(prev => [...(data.reverse() as any), ...prev]);
+      setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
+    } else {
+      setHasMoreMessages(false);
+    }
+    setLoadingMore(false);
+  };
+
+  const handleMessagesScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollTop === 0 && hasMoreMessages) {
+      loadMoreMessages();
+    }
   };
 
   const updateLastRead = async (chatId: string) => {
@@ -378,6 +423,70 @@ export default function ChatInterface({
       setNewMessage(content);
     } else {
       sendPushNotification(content);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(100);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      alert("Microphone permission denied or not available.");
+    }
+  };
+
+  const stopRecording = async () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+      }
+
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      const file = new File([audioBlob], "voice_note.webm", { type: 'audio/webm' });
+      
+      setUploadingFile(true);
+      try {
+        const filePath = `${activeChat?.id}/${Date.now()}_voice_note.webm`;
+        const { error: uploadError } = await supabase.storage.from('chat_media').upload(filePath, file, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage.from('chat_media').getPublicUrl(filePath);
+
+        const { error: msgError } = await supabase.from('messages').insert({
+          chat_id: activeChat!.id,
+          sender_id: session.user.id,
+          content: '',
+          image_url: publicUrl,
+          file_name: 'voice_note.webm',
+          file_type: 'audio/webm'
+        });
+        if (msgError) throw msgError;
+        sendPushNotification('', false, "Voice Note");
+      } catch (err: any) {
+        alert("Failed to send voice note: " + err.message);
+      } finally {
+        setUploadingFile(false);
+      }
     }
   };
 
@@ -716,13 +825,21 @@ export default function ChatInterface({
               </div>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 space-y-4 relative z-0">
+          <div 
+            className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 space-y-4 relative z-0"
+            onScroll={handleMessagesScroll}
+          >
             {/* Auto Delete Banner */}
             <div className="w-full flex justify-center mt-2 mb-6">
               <div className="bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 text-[10px] px-3 py-1.5 rounded-full flex items-center gap-2">
                 <span>🛡️</span> Messages older than 7 days are automatically deleted.
               </div>
             </div>
+            
+            {/* Load More Spinner */}
+            {loadingMore && (
+              <div className="flex justify-center p-2"><Loader2 className="w-4 h-4 animate-spin text-indigo-500" /></div>
+            )}
             {loadingMessages ? (
               <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-indigo-500" /></div>
             ) : (
@@ -776,15 +893,22 @@ export default function ChatInterface({
                               <>
                                 {/* Image attachment */}
                                 {isFileMsgImage(msg) && (
-                                  <div className="relative mb-1.5 rounded-lg overflow-hidden cursor-pointer group/img" onClick={() => setSelectedImage(msg.image_url || null)}>
-                                    <img src={msg.image_url!} alt="Attachment" className="max-h-56 max-w-full object-contain rounded-lg hover:scale-[1.02] transition-transform" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-semibold">
-                                      <Maximize2 className="w-4 h-4 mr-1" /> View
+                                  <div className="mt-1 mb-1 rounded-xl overflow-hidden shadow-sm relative group/img cursor-zoom-in" onClick={() => setSelectedImage(msg.image_url!)}>
+                                    <img src={msg.image_url!} alt="Attached media" className="max-w-full sm:max-w-[240px] md:max-w-[280px] max-h-[300px] object-contain bg-zinc-950/20" loading="lazy" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                      <Maximize2 className="w-5 h-5 text-white drop-shadow-md" />
                                     </div>
                                   </div>
                                 )}
+                                {/* Audio attachment */}
+                                {msg.file_type?.startsWith('audio/') && (
+                                  <div className="mt-1 mb-1 bg-zinc-800/50 rounded-xl p-2 flex flex-col gap-1 border border-zinc-700/50 min-w-[200px]">
+                                    <span className="text-[10px] font-medium text-zinc-400 flex items-center gap-1"><Mic className="w-3 h-3"/> Voice Note</span>
+                                    <audio controls src={msg.image_url!} className="w-full h-8 outline-none" />
+                                  </div>
+                                )}
                                 {/* File attachment */}
-                                {isFileMsgFile(msg) && (
+                                {isFileMsgFile(msg) && !msg.file_type?.startsWith('audio/') && (
                                   <a href={msg.image_url!} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/20 hover:bg-black/30 transition-colors mb-1.5 group/file">
                                     <div className="w-9 h-9 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
                                       <FileText className="w-4 h-4 text-indigo-300" />
@@ -916,18 +1040,41 @@ export default function ChatInterface({
                 <Paperclip className="w-4 h-4" />
               </button>
               <input type="file" ref={fileInputRef} accept="*/*" onChange={handleFileUpload} className="hidden" />
-              <input
-                type="text"
-                value={newMessage}
-                onChange={e => handleInputChange(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-2.5 glass-input text-sm text-[var(--text-primary)] placeholder:text-zinc-500"
-              />
-              <button type="submit" disabled={!newMessage.trim()}
-                className="w-10 h-10 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 flex items-center justify-center text-white disabled:opacity-40 transition-all shrink-0 shadow-lg shadow-indigo-500/20"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+              
+              {isRecording ? (
+                <div className="flex-1 flex items-center justify-between px-4 py-2.5 glass-input text-rose-500 font-medium text-sm animate-pulse">
+                  <span>Recording audio...</span>
+                  <span>{Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={e => handleInputChange(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2.5 glass-input text-sm text-[var(--text-primary)] placeholder:text-zinc-500"
+                />
+              )}
+
+              {isRecording ? (
+                <button type="button" onClick={stopRecording}
+                  className="w-10 h-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/40 flex items-center justify-center text-rose-500 transition-all shrink-0"
+                >
+                  <StopCircle className="w-5 h-5" />
+                </button>
+              ) : !newMessage.trim() ? (
+                <button type="button" onClick={startRecording}
+                  className="w-10 h-10 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 flex items-center justify-center text-indigo-400 transition-all shrink-0"
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              ) : (
+                <button type="submit" disabled={!newMessage.trim()}
+                  className="w-10 h-10 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 flex items-center justify-center text-white disabled:opacity-40 transition-all shrink-0 shadow-lg shadow-indigo-500/20"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              )}
             </form>
           </div>
         </div>
