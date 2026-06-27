@@ -309,6 +309,8 @@ export default function ChatInterface({
               c.other_user_department = userProfile?.department || null;
               c.other_user_office = userProfile?.office || null;
               c.other_user_floor = userProfile?.floor || null;
+            } else {
+              c.name = "Deleted User";
             }
           }
           return c as Chat;
