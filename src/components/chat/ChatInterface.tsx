@@ -292,12 +292,17 @@ export default function ChatInterface({
       const { data: chatsData } = await supabase.from('chats').select('*').in('id', chatIds);
 
       if (chatsData) {
-        const formatted = await Promise.all(chatsData.map(async (c: any) => {
-          const myRecord = membershipData.find((m: any) => m.chat_id === c.id);
-          const lastReadAt = myRecord?.last_read_at || new Date(0).toISOString();
-          const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('chat_id', c.id).gt('created_at', lastReadAt).neq('sender_id', session.user.id);
-          if (!myRecord?.is_muted) setUnreadCounts(prev => ({ ...prev, [c.id]: count || 0 }));
+        // Bulk fetch all unread counts for this user using the new RPC function
+        const { data: unreadData } = await supabase.rpc('get_all_unread_counts', { p_user_id: session.user.id });
+        if (unreadData) {
+          const countsMap: Record<string, number> = {};
+          unreadData.forEach((row: any) => {
+            countsMap[row.chat_id] = parseInt(row.unread_count, 10);
+          });
+          setUnreadCounts(prev => ({ ...prev, ...countsMap }));
+        }
 
+        const formatted = await Promise.all(chatsData.map(async (c: any) => {
           if (!c.is_group) {
             const { data: otherMember } = await supabase.from('chat_members').select('user_id').eq('chat_id', c.id).neq('user_id', session.user.id).maybeSingle();
             if (otherMember) {
@@ -495,8 +500,16 @@ export default function ChatInterface({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0 || !activeChat) return;
-      setUploadingFile(true);
       const file = e.target.files[0];
+      
+      // Enforce 25MB file size limit
+      if (file.size > 25 * 1024 * 1024) {
+        alert("File size exceeds 25MB limit.");
+        e.target.value = '';
+        return;
+      }
+      
+      setUploadingFile(true);
       const isImage = file.type.startsWith('image/');
       let fileToUpload: File | Blob = file;
       let filePath: string;
@@ -607,10 +620,14 @@ export default function ChatInterface({
       if (targetTokens.length === 0) return;
 
       // 2. Call our secure serverless send-push API
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const token = currentSession?.access_token;
+      
       const response = await fetch('/api/send-push', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           tokens: targetTokens,

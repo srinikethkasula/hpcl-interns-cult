@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 // Initialize Supabase using the server-side environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Function to generate Google OAuth2 Access Token using Service Account JSON via native Node crypto (no libraries)
@@ -60,6 +60,16 @@ async function getGoogleAccessToken(serviceAccount: {
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { tokens, title, body, chatId } = await request.json();
 
     if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
