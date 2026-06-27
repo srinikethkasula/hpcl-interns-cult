@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import {
   Send, Hash, User as UserIcon, Loader2, MessageSquare,
   Plus, X, Check, Paperclip, Smile, Trash2, Maximize2,
-  Bell, BellOff, FileText, Download, Phone
+  Bell, BellOff, FileText, Download, Phone, Search, Mic, StopCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -84,6 +84,8 @@ export default function ChatInterface({
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [messageSearch, setMessageSearch] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -666,9 +668,15 @@ export default function ChatInterface({
               </span>
             </div>
 
-            {/* Action buttons in header */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* WhatsApp button — DMs only */}
+          {/* Action buttons in header */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className={`p-2 rounded-xl transition-all ${isSearchOpen ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            {/* WhatsApp button — DMs only */}
               {!activeChat.is_group && activeChat.other_user_phone && (
                 <a
                   href={getWhatsAppLink(activeChat.other_user_phone)}
@@ -694,12 +702,32 @@ export default function ChatInterface({
           </div>
 
           {/* Messages Area */}
+          {isSearchOpen && (
+            <div className="px-4 py-2 bg-zinc-900 border-b border-zinc-800">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Search messages..."
+                  value={messageSearch}
+                  onChange={(e) => setMessageSearch(e.target.value)}
+                  className="w-full bg-zinc-800 text-sm text-white rounded-lg pl-9 pr-4 py-2 outline-none border border-zinc-700 focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 space-y-4 relative z-0">
+            {/* Auto Delete Banner */}
+            <div className="w-full flex justify-center mt-2 mb-6">
+              <div className="bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 text-[10px] px-3 py-1.5 rounded-full flex items-center gap-2">
+                <span>🛡️</span> Messages older than 7 days are automatically deleted.
+              </div>
+            </div>
             {loadingMessages ? (
               <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-indigo-500" /></div>
             ) : (
               <AnimatePresence initial={false}>
-                {messages.map(msg => {
+                {messages.filter(m => m.content.toLowerCase().includes(messageSearch.toLowerCase()) || !messageSearch).map(msg => {
                   const isMe = msg.sender_id === session.user.id;
                   const isDeleted = msg.is_deleted;
                   const isRead = otherMemberLastRead && new Date(msg.created_at) <= new Date(otherMemberLastRead);
